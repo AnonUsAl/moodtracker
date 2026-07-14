@@ -1,4 +1,4 @@
-# MoodTracker
+# MoodTracker(beta)
 
 个人情绪追踪工具。通过命令行快速记录每天的心情和状态，查看历史记录和统计趋势。
 
