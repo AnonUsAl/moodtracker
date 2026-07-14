@@ -1,4 +1,4 @@
-# MoodTracker
+# MoodTracker(beta)
 
 个人情绪追踪工具。支持命令行、Web 可视化界面和 Android 手机 App 三种方式记录每天的心情和状态。
 
