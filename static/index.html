@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MoodTracker</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d27;
+    --border: #2a2d3a;
+    --text: #e0e0e0;
+    --text-dim: #888;
+    --accent: #6c8ce8;
+    --green: #4ade80;
+    --yellow: #facc15;
+    --orange: #fb923c;
+    --red: #f87171;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 20px;
+  }
+  .container { max-width: 720px; margin: 0 auto; }
+
+  /* 头部 */
+  header { text-align: center; margin-bottom: 32px; }
+  header h1 { font-size: 1.6rem; font-weight: 600; }
+  header p { color: var(--text-dim); font-size: 0.9rem; margin-top: 4px; }
+
+  /* 卡片通用 */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 16px; }
+
+  /* 录入表单 */
+  .mood-picker { display: flex; gap: 8px; margin-bottom: 16px; }
+  .mood-btn {
+    flex: 1;
+    padding: 16px 0;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 1.4rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .mood-btn:hover { border-color: var(--accent); color: var(--text); }
+  .mood-btn.active { border-color: var(--accent); background: rgba(108,140,232,0.15); color: var(--text); }
+  .mood-btn .label { display: block; font-size: 0.7rem; margin-top: 4px; }
+
+  .note-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.9rem;
+    font-family: inherit;
+    margin-bottom: 12px;
+  }
+  .note-input:focus { outline: none; border-color: var(--accent); }
+
+  .submit-btn {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .submit-btn:hover { opacity: 0.85; }
+  .submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* 统计 */
+  .stats-row { display: flex; gap: 12px; }
+  .stat-item {
+    flex: 1;
+    text-align: center;
+    padding: 12px;
+    background: var(--bg);
+    border-radius: 8px;
+  }
+  .stat-item .num { font-size: 1.5rem; font-weight: 700; }
+  .stat-item .lbl { font-size: 0.75rem; color: var(--text-dim); margin-top: 4px; }
+
+  /* 趋势图 */
+  .chart-wrap { position: relative; height: 200px; }
+
+  /* 记录列表 */
+  .record-list { list-style: none; }
+  .record-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .record-item:last-child { border-bottom: none; }
+  .record-item .dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  }
+  .record-item .date { font-size: 0.85rem; color: var(--text-dim); width: 130px; flex-shrink: 0; }
+  .record-item .mood-tag { font-size: 0.8rem; font-weight: 600; width: 50px; flex-shrink: 0; }
+  .record-item .note { font-size: 0.85rem; color: var(--text); }
+
+  /* 空状态 */
+  .empty { text-align: center; color: var(--text-dim); padding: 24px 0; font-size: 0.9rem; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--green); color: #000;
+    padding: 10px 20px; border-radius: 8px;
+    font-size: 0.9rem; font-weight: 600;
+    opacity: 0; transition: opacity 0.3s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>MoodTracker</h1>
+    <p>记录你的每一天</p>
+  </header>
+
+  <!-- 录入 -->
+  <div class="card">
+    <h2>记录心情</h2>
+    <div class="mood-picker" id="moodPicker">
+      <button class="mood-btn" data-mood="1">😢<span class="label">很低</span></button>
+      <button class="mood-btn" data-mood="2">😕<span class="label">低</span></button>
+      <button class="mood-btn" data-mood="3">😐<span class="label">一般</span></button>
+      <button class="mood-btn" data-mood="4">🙂<span class="label">好</span></button>
+      <button class="mood-btn" data-mood="5">😄<span class="label">很好</span></button>
+    </div>
+    <input type="text" class="note-input" id="noteInput" placeholder="备注（可选）" maxlength="200">
+    <button class="submit-btn" id="submitBtn" disabled>保存记录</button>
+  </div>
+
+  <!-- 统计 -->
+  <div class="card" id="statsCard" style="display:none">
+    <h2>概览</h2>
+    <div class="stats-row">
+      <div class="stat-item"><div class="num" id="statAvg">-</div><div class="lbl">平均</div></div>
+      <div class="stat-item"><div class="num" id="statHigh">-</div><div class="lbl">最高</div></div>
+      <div class="stat-item"><div class="num" id="statLow">-</div><div class="lbl">最低</div></div>
+      <div class="stat-item"><div class="num" id="statTotal">-</div><div class="lbl">总记录</div></div>
+    </div>
+  </div>
+
+  <!-- 趋势图 -->
+  <div class="card" id="chartCard" style="display:none">
+    <h2>情绪趋势</h2>
+    <div class="chart-wrap"><canvas id="moodChart"></canvas></div>
+  </div>
+
+  <!-- 记录列表 -->
+  <div class="card">
+    <h2>历史记录</h2>
+    <ul class="record-list" id="recordList">
+      <li class="empty">还没有记录，先记录一下今天的心情吧</li>
+    </ul>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const MOOD_COLORS = { 1:'#f87171', 2:'#fb923c', 3:'#facc15', 4:'#4ade80', 5:'#22d3ee' };
+const MOOD_LABELS = { 1:'很低', 2:'低', 3:'一般', 4:'好', 5:'很好' };
+let selectedMood = null;
+let chart = null;
+
+// ---- 录入 ----
+document.querySelectorAll('.mood-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedMood = parseInt(btn.dataset.mood);
+    document.getElementById('submitBtn').disabled = false;
+  });
+});
+
+document.getElementById('submitBtn').addEventListener('click', async () => {
+  const note = document.getElementById('noteInput').value.trim();
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = '保存中...';
+
+  try {
+    const res = await fetch('/api/records', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mood: selectedMood, note })
+    });
+    if (!res.ok) throw new Error('请求失败');
+
+    // 重置表单
+    document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('noteInput').value = '';
+    selectedMood = null;
+
+    showToast('已保存!');
+    await loadRecords();
+  } catch (e) {
+    showToast('保存失败，请重试', true);
+  } finally {
+    btn.textContent = '保存记录';
+    btn.disabled = true;
+  }
+});
+
+// ---- 加载记录 ----
+async function loadRecords() {
+  try {
+    const res = await fetch('/api/records');
+    const records = await res.json();
+    renderRecords(records);
+    renderStats(records);
+    renderChart(records);
+  } catch (e) {
+    console.error('加载失败', e);
+  }
+}
+
+// ---- 渲染列表 ----
+function renderRecords(records) {
+  const list = document.getElementById('recordList');
+  if (!records.length) {
+    list.innerHTML = '<li class="empty">还没有记录，先记录一下今天的心情吧</li>';
+    return;
+  }
+  // 按时间倒序
+  const sorted = [...records].reverse();
+  list.innerHTML = sorted.map(r => `
+    <li class="record-item">
+      <span class="dot" style="background:${MOOD_COLORS[r.mood]}"></span>
+      <span class="date">${r.date} ${r.time}</span>
+      <span class="mood-tag" style="color:${MOOD_COLORS[r.mood]}">${r.mood}/5</span>
+      <span class="note">${r.note || ''}</span>
+    </li>
+  `).join('');
+}
+
+// ---- 渲染统计 ----
+function renderStats(records) {
+  if (!records.length) {
+    document.getElementById('statsCard').style.display = 'none';
+    return;
+  }
+  document.getElementById('statsCard').style.display = 'block';
+  const moods = records.map(r => r.mood);
+  const avg = (moods.reduce((a,b) => a+b, 0) / moods.length).toFixed(1);
+  document.getElementById('statAvg').textContent = avg;
+  document.getElementById('statHigh').textContent = Math.max(...moods);
+  document.getElementById('statLow').textContent = Math.min(...moods);
+  document.getElementById('statTotal').textContent = records.length;
+}
+
+// ---- 渲染趋势图 ----
+function renderChart(records) {
+  if (!records.length) {
+    document.getElementById('chartCard').style.display = 'none';
+    return;
+  }
+  document.getElementById('chartCard').style.display = 'block';
+
+  // 按日期聚合（同一天多条取平均）
+  const byDate = {};
+  records.forEach(r => {
+    if (!byDate[r.date]) byDate[r.date] = [];
+    byDate[r.date].push(r.mood);
+  });
+  const dates = Object.keys(byDate).sort();
+  const avgMoods = dates.map(d => {
+    const ms = byDate[d];
+    return ms.reduce((a,b) => a+b, 0) / ms.length;
+  });
+
+  const ctx = document.getElementById('moodChart').getContext('2d');
+  if (chart) chart.destroy();
+
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: dates,
+      datasets: [{
+        label: '情绪分数',
+        data: avgMoods,
+        borderColor: '#6c8ce8',
+        backgroundColor: 'rgba(108,140,232,0.1)',
+        fill: true,
+        tension: 0.3,
+        pointBackgroundColor: avgMoods.map(m => MOOD_COLORS[Math.round(m)]),
+        pointRadius: 5,
+        pointHoverRadius: 7,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          min: 0.5, max: 5.5,
+          ticks: {
+            stepSize: 1,
+            color: '#888',
+            callback: v => MOOD_LABELS[v] || ''
+          },
+          grid: { color: '#2a2d3a' }
+        },
+        x: { ticks: { color: '#888', maxRotation: 45 }, grid: { display: false } }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+// ---- Toast ----
+function showToast(msg, isError) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.style.background = isError ? '#f87171' : '#4ade80';
+  toast.style.color = isError ? '#fff' : '#000';
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2000);
+}
+
+// 初始化
+loadRecords();
+</script>
+</body>
+</html>
